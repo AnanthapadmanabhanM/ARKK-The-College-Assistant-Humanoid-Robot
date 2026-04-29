@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+*.ipynb
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# Large model files (store separately via Git LFS or cloud)
+*.h5
+*.pkl
+*.pt
+*.pth
+
+# Trained face recognizer (generated locally)
+src/trainer/trainer.yml
+
+# API keys — NEVER commit these
+# If you have a config.py or .env with keys, add it here
+config.py
+.env
+
+# Navigation map images (add your own)
+assets/navigation_maps/*.jpg
+assets/navigation_maps/*.png
+
+# Background image
+src/bg.png
+
+# Dataset files
+*.csv.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

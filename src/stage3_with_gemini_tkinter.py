@@ -1,0 +1,263 @@
+import os
+import requests
+import textwrap
+import json
+import cv2
+import pyttsx3
+import google.generativeai as genai
+import speech_recognition as sr 
+from tensorflow.keras import Sequential
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+import numpy as np
+from IPython.display import display
+from IPython.display import Markdown
+import tkinter as tk
+from tkinter import PhotoImage
+from PIL import Image, ImageTk
+
+#gemini integration
+GOOGLE_API_KEY = os.environ.get('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')
+genai.configure(api_key=GOOGLE_API_KEY)
+model1 = genai.GenerativeModel('gemini-pro')
+#generation.config = GenerationConfi(temprature=0.9,top_p=1.0,top_k=32,candidate_count)
+
+
+model = Sequential()
+classifier = load_model('emotion_model_1.h5')
+
+class_labels = {0: 'Angry', 1: 'Fear', 2: 'Happy', 3: 'Neutral', 4: 'Sad', 5: 'Surprise'}
+classes = list(class_labels.values())
+
+face_classifier = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+
+engine=pyttsx3.init()
+engine.setProperty('rate', 150)
+voices = engine.getProperty('voices')  
+engine.setProperty('volume',1.0)
+engine.setProperty('voice', voices[1].id)
+t=[]
+
+recognizer = cv2.face.LBPHFaceRecognizer_create()
+recognizer.read('trainer/trainer.yml')
+faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+
+def face_detector_image(img):
+    gray = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2GRAY) # Convert the image into GrayScale image
+    faces = face_classifier.detectMultiScale(gray, 1.3, 5)
+    if faces is ():
+        return (0, 0, 0, 0), np.zeros((48, 48), np.uint8), img
+
+    allfaces = []
+    rects = []
+    for (x, y, w, h) in faces:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        roi_gray = gray[y:y + h, x:x + w]
+        roi_gray = cv2.resize(roi_gray, (48, 48), interpolation=cv2.INTER_AREA)
+        allfaces.append(roi_gray)
+        rects.append((x, w, y, h))
+    return rects, allfaces, img
+
+def face_detector_video(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces = face_classifier.detectMultiScale(gray, 1.3, 5)
+    if faces is ():
+        return (0, 0, 0, 0), np.zeros((48, 48), np.uint8), img
+
+    for (x, y, w, h) in faces:
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
+        roi_gray = gray[y:y + h, x:x + w]
+
+    roi_gray = cv2.resize(roi_gray, (48, 48), interpolation=cv2.INTER_AREA)
+
+    return (x, w, y, h), roi_gray, img
+
+def emotionVideo(frame):
+
+        rect, face, image = face_detector_video(frame)
+        if np.sum([face]) != 0.0:
+            roi = face.astype("float") / 255.0
+            roi = img_to_array(roi)
+            roi = np.expand_dims(roi, axis=0)
+            preds = classifier.predict(roi,verbose=0)[0]
+            label = class_labels[preds.argmax()]
+            return label
+
+        else:
+            return 0
+
+
+def get_bot_response(userText):
+    response={}
+    data = json.dumps({"sender" : "Rasa","message" : userText})
+    headers = {'Content-type' : 'application/json', 'Accept' : 'text/plain'}
+    response = requests.post('http://localhost:5005/webhooks/rest/webhook', data = data, headers = headers)
+    response = response.json()
+    print("*************************")
+    print(response)
+    print(len(response))
+    if len(response)==0:
+        return 0
+    return response[0]['text']
+
+
+
+def to_markdown(text):
+    text = text.replace('•', '  *')
+    text = text.replace('*', ' ')
+    #return textwrap.indent(text, '> ', predicate=lambda _: True)
+    print(text)
+    return text
+
+
+
+
+class Application:
+    def __init__(self):
+
+        self.root=tk.Tk()
+        self.root.title('arkk')
+        #self.root.attributes('-fullscreen',True)
+        background_image_path="bg.png"
+        image= Image.open(background_image_path)
+        screen_width=self.root.winfo_screenwidth()
+        screen_height=self.root.winfo_screenheight()
+        image=image.resize((screen_width,screen_height))
+        print(screen_width,screen_height)
+
+        self.photo_image=ImageTk.PhotoImage(image)
+        self.background_label=tk.Label(self.root,image=self.photo_image)
+        self.background_label.place(x=0,y=0,relwidth=1, relheight=1)
+
+        self.name=1000
+        self.cam=cv2.VideoCapture(0)
+        self.mloop()
+    
+    def speechRec(self):
+        r = sr.Recognizer() 
+        for ye in range(3):
+
+            with sr.Microphone() as source:
+                print("Please wait. Calibrating microphone...")   
+                r.adjust_for_ambient_noise(source, duration=2)  
+                print(ye)
+                print("Say something!") 
+                audio = r.listen(source,timeout=5,phrase_time_limit=10) 
+                try:  
+                    audio=r.recognize_google(audio)
+                    print("you said '" +audio + "'")  
+                    audio=audio.lower()
+                    return audio
+                except sr.UnknownValueError:  
+                    print("could not understand audio")  
+                except sr.RequestError as e:  
+                    print("error; {0}".format(e))
+        return 0
+    
+    def check_face(self,img):
+        id=1000
+        
+        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        faces = faceCascade.detectMultiScale( 
+            gray,
+            scaleFactor = 1.2,
+            minNeighbors = 5,
+            minSize = (int(self.minW), int(self.minH)))
+        #print(len(faces))
+        for(x,y,w,h) in faces:
+            print("detected")
+            cv2.rectangle(img, (x,y), (x+w,y+h), (0,255,0), 2)
+            id, confidence = recognizer.predict(gray[y:y+h,x:x+w])
+
+            if (confidence < 70):
+                #id = names[id]
+                confidence = "  {0}%".format(round(100 - confidence))
+                
+            elif confidence >= 70:
+                id = "unknown"
+                confidence = "  {0}%".format(round(100 - confidence))
+        return id
+            
+    
+    def mloop(self):
+        face_flag=0
+        
+        self.minW = 0.1*self.cam.get(3)
+        self.minH = 0.1*self.cam.get(4)
+        ret, img =self.cam.read()
+    
+        if not ret:
+            print("Camera not connected")
+        
+        if self.name==1000:
+            self.name=self.check_face(img)
+        else:
+            print(self.name)
+            emot=emotionVideo(img)
+            
+            text="Hello how can i help you?"
+            if emot=="Angry":
+                text="Hello, it looks like you're not your usual self. Would you like to talk about what's going on? How can I help?"
+            elif emot=="Fear":
+                text="Hi, I can sense some unease in your tone. Want to talk about what's scaring you? How can I assist you?"
+            elif emot=="Happy":
+                text="Hi there! You're looking cheerful today. What's on your mind? What can I do for you?"
+            elif emot=="Neutral":
+                text="Hi there, you seem pretty calm. What's on your mind? How can I assist you?"
+            elif emot=="Sad":
+                text="Hey, it looks like something's on your mind. I'm here to listen if you want to share. What can I do for you?"
+            elif emot=="Surprise":
+                text="Hi there. I can tell  you are very surprised. How can I assist today?"
+            elif emot=="Disgust":
+                text="Hey, it looks like something's grossing you out. Want to talk about what's bothering you? How can I help?"
+
+            if self.name=="unknown":
+                engine.say(text)
+                engine.runAndWait()
+            else:
+                #text="Hello "+name+" how can i help you?"
+                engine.say(text)
+                engine.runAndWait()
+            face_flag=1
+            while face_flag:
+                t=self.speechRec()
+                if t!=0:
+                    res=get_bot_response(t)
+                    #print(res)
+                    if "loc_place" in res:
+                        place=res.split(",")[1]
+                    elif "book_app" in res:
+                        print("appointment_booked")
+                    else:
+                        if res !=0:
+                            engine.say(res)
+                            engine.runAndWait()
+                        else:
+                            response = model1.generate_content(t,)
+                            tt=to_markdown(response.text)
+                            print(response.text)
+                            engine.say(tt)
+                            engine.runAndWait()
+                else:
+                    if emot=="Angry":
+                        text="Okay, see you later! Channel that anger into positive action."
+                    elif emot=="Fear":
+                        text="Farewell! Embrace the unknown with bravery and resilience."
+                    elif emot=="Happy":
+                        text="Alright, catch you later! Keep spreading those good vibes!"
+                    elif emot=="Neutral":
+                        text="Okay, see you later! Channel that anger into positive action."
+                    elif emot=="Sad":
+                        text="Alright, take care! I hope brighter days are ahead for you."
+                    elif emot=="Surprise":
+                        text="Alright, take care! I'm glad to leave you surprised."
+                    elif emot=="Disgust":
+                        text="Alright, take care! If you need to vent further, I'm here to listen."
+                    engine.say(text)
+                    engine.runAndWait()
+                    face_flag=0
+                    self.name=1000
+        self.root.after(30,self.mloop)
+app=Application()
+app.root.mainloop()
+    

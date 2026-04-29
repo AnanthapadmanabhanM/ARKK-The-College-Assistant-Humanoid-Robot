@@ -1,0 +1,33 @@
+# ARKK - College Assistant Humanoid Robot
+# Python dependencies
+
+# Computer Vision
+opencv-python>=4.5.0
+opencv-contrib-python>=4.5.0  # Required for cv2.face.LBPHFaceRecognizer
+
+# Deep Learning
+tensorflow>=2.8.0
+keras>=2.8.0
+numpy>=1.21.0
+
+# Speech
+SpeechRecognition>=3.9.0
+pyttsx3>=2.90
+pyaudio>=0.2.11  # Required by SpeechRecognition for microphone access
+
+# GUI
+Pillow>=9.0.0
+# tkinter is included in standard Python — no pip install needed
+
+# HTTP (for RASA webhook)
+requests>=2.27.0
+
+# Gemini API (optional — only needed for stage2/stage3 versions)
+# google-generativeai>=0.3.0
+
+# Jupyter (optional — for .ipynb notebooks)
+# jupyter>=1.0.0
+
+# Data
+pandas>=1.4.0  # For library CSV handling
+openpyxl>=3.0.0  # For .xlsx support
